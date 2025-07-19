@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import * as XLSX from 'xlsx'
+import { saveAs } from 'file-saver'
 
 type Absensi = {
   nopek: string
   nama: string
   area: string
+  isPekerja: string
   data: {
     [date: string]: {
       masuk: string
@@ -24,14 +27,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [dates, setDates] = useState<string[]>([])
 
-  // Filter states
   const [startDate, setStartDate] = useState('2025-07-01')
   const [endDate, setEndDate] = useState('2025-07-10')
-  const [kategori, setKategori] = useState('Semua')
+  const [area, setArea] = useState('Semua')
+  const [tipe, setTipe] = useState('Semua')
 
   const fetchRekap = () => {
     setLoading(true)
-    const query = `?startDate=${startDate}&endDate=${endDate}&kategori=${kategori}`
+    const query = `?startDate=${startDate}&endDate=${endDate}&area=${area}&tipe=${tipe}`
     fetch(`http://localhost:3000/api/rekap${query}`)
       .then(res => res.json())
       .then(data => {
@@ -47,53 +50,113 @@ export default function Home() {
       })
   }
 
+  const exportToExcel = () => {
+    const rows: any[] = []
+
+    rekap.forEach(row => {
+      const base: any = {
+        Nopek: row.nopek,
+        Nama: row.nama,
+        Area: row.area,
+        'Tipe Pekerja': row.isPekerja === 'y' ? 'Pekerja' : 'Non-Pekerja',
+        Terlambat: row.terlambat,
+        'Pulang Cepat': row.pulangCepat,
+        'Tidak Checkout': row.tidakCheckout,
+      }
+
+      dates.forEach(date => {
+        const entry = row.data[date]
+        base[`Masuk ${date}`] = entry?.masuk || '-'
+        base[`Keluar ${date}`] = entry?.keluar || '-'
+      })
+
+      rows.push(base)
+    })
+
+    const worksheet = XLSX.utils.json_to_sheet(rows)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap Absensi')
+
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' })
+    saveAs(blob, `Rekap_Absensi_${startDate}_to_${endDate}.xlsx`)
+  }
+
   useEffect(() => {
     fetchRekap()
   }, [])
 
   return (
     <main className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">📊 Rekap Absensi</h1>
-
       {/* FILTER */}
-      <div className="mb-4 flex flex-wrap items-center gap-4">
-        <label className="text-sm">
-          Mulai:
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="ml-2 px-2 py-1 border rounded text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Sampai:
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="ml-2 px-2 py-1 border rounded text-sm"
-          />
-        </label>
-        <label className="text-sm">
-          Kategori:
-          <select
-            value={kategori}
-            onChange={e => setKategori(e.target.value)}
-            className="ml-2 px-2 py-1 border rounded text-sm"
+      <div className="flex flex-col items-center justify-center">
+        <h1 className="text-2xl font-semibold mb-4">📊 Rekap Absensi</h1>
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          <label className="text-sm">
+            Mulai:
+            <input
+              type="date"
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="ml-2 px-2 py-1 border rounded text-sm"
+            />
+          </label>
+          <label className="text-sm">
+            Sampai:
+            <input
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              className="ml-2 px-2 py-1 border rounded text-sm"
+            />
+          </label>
+          <label className="text-sm">
+            Area:
+            <select
+              value={area}
+              onChange={e => setArea(e.target.value)}
+              className="ml-2 px-2 py-1 border rounded text-sm"
+            >
+              <option value="Semua">Semua</option>
+              <option value="PGE-KP">PGE-KP</option>
+              <option value="PGE-UBL">PGE-UBL</option>
+              <option value="PGE-KMJ">PGE-KMJ</option>
+              <option value="PGE-LMB">PGE-LMB</option>
+              <option value="PGE-LHD">PGE-LHD</option>
+              <option value="PGE-KRH">PGE-KRH</option>
+              <option value="PGE-HLS">PGE-HLS</option>
+              <option value="PGE-SBY">PGE-SBY</option>
+            </select>
+          </label>
+          <label className="text-sm">
+            Tipe:
+            <select
+              value={tipe}
+              onChange={e => setTipe(e.target.value)}
+              className="ml-2 px-2 py-1 border rounded text-sm"
+            >
+              <option value="Semua">Semua</option>
+              <option value="Pekerja">Pekerja</option>
+              <option value="Non-Pekerja">Non-Pekerja</option>
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={fetchRekap}
+              className="px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+            >
+              View
+            </button>
+          </div>
+        </div>
+        <div className="pb-3">
+          <button
+            onClick={exportToExcel}
+            className="px-4 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
           >
-            <option value="Semua">Semua</option>
-            <option value="PGE-FO">PGE-FO</option>
-            <option value="PGE-UP">PGE-UP</option>
-            <option value="Pekerja">Pekerja</option>
-          </select>
-        </label>
-        <button
-          onClick={fetchRekap}
-          className="px-4 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-        >
-          View
-        </button>
+            Download Excel
+          </button>
+        </div>
       </div>
 
       {/* TABLE */}
